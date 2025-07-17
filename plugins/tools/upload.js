@@ -1,17 +1,15 @@
-const axios = require("axios");
-const FormData = require("form-data");
 module.exports = {
   help: ["upload"],
   tags: ["tools"],
   command: /^(upload)$/i,
   run: async (m, {
     Func,
-    API,
     conn,
-    quoted
+    quoted,
+    uploader
   }) => {
     let inputHost = null;
-    let defaultHost = "Eax";
+    let defaultHost = "catbox";
     const commandName = m.command;
     const messageText = (m.body || "").trim();
     let argText = "";
@@ -22,25 +20,13 @@ module.exports = {
     if (argText) {
       inputHost = argText.split(" ")[0];
     }
-    const listHostsApiUrl = API("wudysoft", "/api/tools/upload");
-    let availableHosts = [];
-    try {
-      const response = await axios.get(listHostsApiUrl);
-      if (response && response.data && response.data.hosts) {
-        availableHosts = response.data.hosts;
-      } else {
-        m.react("💢");
-        return m.reply(`💢 *ERROR: Gagal mengambil daftar target deploy dari API.*`);
-      }
-    } catch (error) {
-      console.error(error);
-      m.react("❌");
-      let errorMessage = error.response?.data ? `${JSON.stringify(error.response.data, null, 2).substring(0, 500)}...` : `${error.message || error}`;
-      return m.reply(`❌ *DEPLOY DIBATALKAN: Kesalahan sistem saat akuisisi target.*\n\n${errorMessage}`);
-    }
+
+    const availableHosts = Object.keys(uploader.providers);
+
     let finalHost = defaultHost;
     let showHostList = false;
     let statusMessage = "";
+
     if (inputHost) {
       if (availableHosts.includes(inputHost)) {
         finalHost = inputHost;
@@ -52,6 +38,7 @@ module.exports = {
     } else {
       statusMessage = `💡 *Tidak ada target ditentukan.* Menggunakan default: *${defaultHost}*.`;
     }
+
     if (!quoted || typeof quoted.download !== "function" || showHostList) {
       let replyText = ``;
       if (showHostList) {
@@ -65,45 +52,56 @@ module.exports = {
         replyText += `\nUntuk mengunggah data, *balas gambar/video/dokumen*.\n`;
         replyText += `\nSertakan nama host: .upload *<nama_host>*\n`;
       }
-      let hostsList = availableHosts.map(h => `  • *${h}*`).join("\n");
+      let hostsList = availableHosts.map(h => ` • *${h}*`).join("\n");
       replyText += `\n🌐 *AVAILABLE TARGETS*\n${hostsList}\n`;
-      replyText += `\n*Contoh:* .upload *Supa* (balas gambar)` + `\n*Atau untuk default:* .upload (balas gambar, akan diunggah ke *${defaultHost}*)`;
-      return m.reply(replyText);
+      replyText += `\n*Contoh:* .upload *catbox* (balas gambar)` + `\n*Atau untuk default:* .upload (balas gambar, akan diunggah ke *${defaultHost}*)`;
+      return conn.reply(m.chat, replyText, m);
     }
+
     m.react("⏳");
     try {
       const buffer = await quoted.download();
       if (!buffer) {
         m.react("💢");
-        return m.reply(`💢 *ERROR: Aliran data rusak. Gagal memperoleh file.*`);
+        return conn.reply(m.chat, `💢 *ERROR: Aliran data rusak. Gagal memperoleh file.*`, m);
       }
+
+      const uploaderProvider = uploader.providers[finalHost];
+
+      if (!uploaderProvider || typeof uploaderProvider.upload !== 'function') {
+        m.react("❌");
+        return conn.reply(m.chat, `❌ *DEPLOY GAGAL: Provider "${finalHost}" tidak ditemukan atau tidak memiliki method upload yang valid.*`, m);
+      }
+
+      const fileExtension = quoted.msg?.mimetype ? quoted.msg.mimetype.split("/")[1] : "dat";
       const now = new Date();
       const dateTimeString = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, "0") + now.getDate().toString().padStart(2, "0") + "_" + now.getHours().toString().padStart(2, "0") + now.getMinutes().toString().padStart(2, "0") + now.getSeconds().toString().padStart(2, "0");
-      const fileExtension = quoted.msg?.mimetype ? quoted.msg.mimetype.split("/")[1] : "dat";
-      const newFilename = `upload_${dateTimeString}.${fileExtension}`;
-      const formData = new FormData();
-      formData.append("file", buffer, {
-        filename: newFilename,
-        contentType: quoted.msg?.mimetype
+      const filename = `upload_${dateTimeString}.${fileExtension}`;
+      const mimetype = quoted.msg?.mimetype;
+
+      const result = await uploaderProvider.upload(buffer, {
+        filename,
+        contentType: mimetype
       });
-      const uploadApiUrl = API("wudysoft", "/api/tools/upload", {
-        host: finalHost
-      });
-      const response = await axios.post(uploadApiUrl, formData, {
-        headers: formData.getHeaders()
-      });
-      if (response && response.data && response.data.result) {
+
+      if (typeof result === 'string' && result.startsWith('http')) { // Memeriksa jika result adalah string dan dimulai dengan 'http'
         m.react("✅");
-        return m.reply(`✅ *DEPLOY BERHASIL*\n` + `\n*Host:* ${finalHost}\n` + `\n🔗 *Titik Akses:*\n${response.data.result}\n` + `\n_Transaksi selesai. Data aman._`);
+        return conn.reply(m.chat, `✅ *DEPLOY BERHASIL*\n` + `\n*Host:* ${finalHost}\n` + `\n🔗 *Titik Akses:*\n${result}\n` + `\n_Transaksi selesai. Data aman._`, m);
       } else {
-        console.error("Upload API returned no result:", response?.data);
         m.react("❌");
-        return m.reply(`❌ *DEPLOY GAGAL: Sistem target tidak responsif.*`);
+        return conn.reply(m.chat, `❌ *DEPLOY GAGAL: Sistem target tidak responsif atau tidak mengembalikan URL yang valid.*`, m);
       }
     } catch (error) {
-      console.error("Error during file upload:", error);
       m.react("❌");
-      return m.reply(`❌ *DEPLOY GAGAL: Terjadi kesalahan saat mengunggah.*`);
+      let errorMessage = error.message || error;
+      if (error.response && error.response.data) {
+        try {
+          errorMessage += `\nDetail: ${JSON.stringify(error.response.data).slice(0, 500)}`;
+        } catch (e) {
+          errorMessage += `\nDetail: ${error.response.data.toString().slice(0, 500)}`;
+        }
+      }
+      return conn.reply(m.chat, `❌ *DEPLOY GAGAL: Terjadi kesalahan saat mengunggah.* \n\n${errorMessage}`, m);
     }
   },
   limit: 3

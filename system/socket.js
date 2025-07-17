@@ -541,7 +541,7 @@ async function serialize(conn, msg, store) {
     m.chat = m.key.remoteJid.startsWith("status") ? jidNormalizedUser(m.key?.participant || msg.participant) : jidNormalizedUser(m.key.remoteJid);
     m.participant = jidNormalizedUser(m.message?.participant || m.key.participant) || false;
     m.isGroup = m.chat.endsWith("@g.us");
-    m.sender = jidNormalizedUser(m.fromMe ? conn.user.id : m.isGroup ? m.participant : m.chat);
+    m.sender = m.key?.senderPn ? jidNormalizedUser(m.key.senderPn) : jidNormalizedUser(m.fromMe ? conn.user.id : m.isGroup ? m.participant : m.chat);
     m.name = msg.pushName;
   }
   if (m.isGroup) {
@@ -551,7 +551,7 @@ async function serialize(conn, msg, store) {
       id: memberNow.id,
       admin: memberNow.admin
     }) : [...memberAdmin]) && memberAdmin, []);
-    m.isAdmin = m.isGroup && !!m.groupAdmins.find(member => member.id === m.sender);
+    m.isAdmin = m.isGroup && !!m.groupAdmins.find(member => member.id === m.key.senderPn);
     m.isBotAdmin = m.isGroup && !!m.groupAdmins.find(member => member.id === jidNormalizedUser(conn.user.id));
   }
   if (m.message) {

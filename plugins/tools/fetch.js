@@ -44,7 +44,7 @@ module.exports = {
     } else if (m.body) {
       const commandPrefix = m.command;
       const bodyLower = m.body.toLowerCase();
-      const prefixIndex = bodyLower.indexOf(commandPrefix.toLowerCase());
+      const prefixIndex = bodyLower.toLowerCase().indexOf(commandPrefix.toLowerCase()); // Perbaikan di sini
       if (prefixIndex === 0) {
         fullCommandText = m.body.substring(commandPrefix.length).trim();
       } else {
@@ -55,8 +55,9 @@ module.exports = {
       method: "get",
       url: null,
       responseType: "arraybuffer",
+      // Menonaktifkan validateStatus agar bisa menangkap semua respons, termasuk error
       validateStatus: function(status) {
-        return status >= 200 && status < 400;
+        return true; // Terima semua status kode
       },
       maxRedirects: 10,
       headers: {
@@ -126,8 +127,8 @@ module.exports = {
                   ...parsedValue
                 };
               } else {
-                m.react("❌");
-                return m.reply("*Format parameter tidak valid untuk --" + processingFlag + ". Diharapkan format JSON.*");
+                conn.reply(m.chat, "*Format parameter tidak valid untuk --" + processingFlag + ". Diharapkan format JSON.*", m);
+                return;
               }
             } else if (["head", "headers", "h"].includes(processingFlag)) {
               if (typeof parsedValue === "object" && parsedValue !== null) {
@@ -136,8 +137,8 @@ module.exports = {
                   ...parsedValue
                 };
               } else {
-                m.react("❌");
-                return m.reply("*Format header tidak valid untuk --" + processingFlag + ". Diharapkan format JSON.*");
+                conn.reply(m.chat, "*Format header tidak valid untuk --" + processingFlag + ". Diharapkan format JSON.*", m);
+                return;
               }
             } else if (processingFlag === "method") {
               axiosConfig.method = String(parsedValue).toLowerCase();
@@ -163,24 +164,27 @@ module.exports = {
     if (!axiosConfig.url || !URL_REGEX.test(axiosConfig.url)) {
       m.react("ℹ️");
       const commandUsage = m.prefix + m.command;
-      return m.reply("*Penggunaan:*\n" + "- " + commandUsage + " <URL>\n" + "- " + commandUsage + " <URL> --get {key: 'value'}\n" + "- " + commandUsage + " <URL> --post {prompt: 'hi'}\n" + "- " + commandUsage + " <URL> --head {Auth: 'token'}\n" + "- " + commandUsage + " <URL> --get {param: 'value'} --head {Accept: '*/*'}\n" + "- " + commandUsage + " <URL> --post {data: 'value'} --head {Content-Type: 'application/json'}\n\n" + "*Contoh:*\n" + "- " + commandUsage + " https://example.com/file.pdf\n" + "- " + commandUsage + " https://api.example.com/users --get {id: 123, limit: 10}\n" + "- " + commandUsage + " https://api.example.com/users --post {name: 'Alice', age: 30}\n" + "- " + commandUsage + " https://api.example.com/data --head {Authorization: 'Bearer token'}\n" + "- " + commandUsage + " https://api.example.com/search --get {query: 'hello'} --head {User-Agent: 'MyBot'}");
+      return conn.reply(m.chat, "*Penggunaan:*\n" + "- " + commandUsage + " <URL>\n" + "- " + commandUsage + " <URL> --get {key: 'value'}\n" + "- " + commandUsage + " <URL> --post {prompt: 'hi'}\n" + "- " + commandUsage + " <URL> --head {Auth: 'token'}\n" + "- " + commandUsage + " <URL> --get {param: 'value'} --head {Accept: '*/*'}\n" + "- " + commandUsage + " <URL> --post {data: 'value'} --head {Content-Type: 'application/json'}\n\n" + "*Contoh:*\n" + "- " + commandUsage + " [https://example.com/file.pdf](https://example.com/file.pdf)\n" + "- " + commandUsage + " [https://api.example.com/users](https://api.example.com/users) --get {id: 123, limit: 10}\n" + "- " + commandUsage + " [https://api.example.com/users](https://api.example.com/users) --post {name: 'Alice', age: 30}\n" + "- " + commandUsage + " [https://api.example.com/data](https://api.example.com/data) --head {Authorization: 'Bearer token'}\n" + "- " + commandUsage + " [https://api.example.com/search](https://api.example.com/search) --get {query: 'hello'} --head {User-Agent: 'MyBot'}", m);
     }
     axiosConfig.url = /^https?:\/\//i.test(axiosConfig.url) ? axiosConfig.url : "http://" + axiosConfig.url;
     if (axiosConfig.method === "get" && axiosConfig.data !== null && Object.keys(axiosConfig.params).length === 0) {
       axiosConfig.params = axiosConfig.data;
       axiosConfig.data = null;
     } else if (axiosConfig.method === "get" && axiosConfig.data !== null) {
-      console.log("Peringatan: Metode GET digunakan dengan data di body. Data tersebut akan diabaikan.");
       axiosConfig.data = null;
     }
     m.react("⏱️");
     try {
       const response = await axios(axiosConfig);
       const contentLength = response.headers["content-length"];
+      const statusCode = response.status;
+      const statusText = response.statusText;
+
       if (contentLength && parseInt(contentLength) > 100 * 1024 * 1024) {
         m.react("❌");
-        return m.reply("🚨 *ERROR: Konten terlalu besar!* (" + formatSize(parseInt(contentLength)) + "). Batas maksimum adalah 100 MB.");
+        return conn.reply(m.chat, `🚨 *ERROR: Konten terlalu besar!* (${formatSize(parseInt(contentLength))}). Batas maksimum adalah 100 MB.`, m);
       }
+
       const contentType = response.headers["content-type"] || "application/octet-stream";
       let filename = "downloaded_file";
       const contentDisposition = response.headers["content-disposition"];
@@ -225,41 +229,41 @@ module.exports = {
         }
       }
       const buffer = Buffer.from(response.data);
-      if (/^image\//.test(contentType)) {
-        await conn.sendFile(m.chat, buffer, filename, "", m);
+
+      if (/^image\//.test(contentType) || /^audio\//.test(contentType) || /^video\//.test(contentType) || /^application\/(pdf|zip|x-rar-compressed)/.test(contentType)) {
+        conn.sendFile(m.chat, buffer, filename, '', m);
       } else if (/^text\//.test(contentType) || /^application\/json/.test(contentType) || /^text\/html/.test(contentType)) {
         let contentText;
         try {
           contentText = buffer.toString("utf8");
           if (/^application\/json/.test(contentType)) {
             const jsonContent = JSON.parse(contentText);
-            contentText = JSON.stringify(jsonContent, null, 2);
+            contentText = "```json\n" + JSON.stringify(jsonContent, null, 2) + "\n```"; // Tambahkan backtick untuk JSON
+          } else if (/^text\/html/.test(contentType) && contentText.length > 2000) {
+              contentText = contentText.substring(0, 2000) + "\n...\n[Konten HTML terlalu panjang, dipotong]";
+          } else if (contentText.length > 2000) {
+              contentText = contentText.substring(0, 2000) + "\n...\n[Konten teks terlalu panjang, dipotong]";
           }
         } catch (e) {
-          contentText = "[Konten tidak dapat ditampilkan sebagai teks atau diparse]";
+          contentText = "[Konten tidak dapat ditampilkan sebagai teks atau diparse]\nError parsing: " + e.message.slice(0, 200);
         }
-        if (contentText.length > 6e3) {
-          await conn.sendFile(m.chat, buffer, `${filename}.txt`, "", m);
-        } else {
-          await m.reply(contentText);
-        }
+        conn.reply(m.chat, String(contentText), m);
       } else {
-        await conn.sendFile(m.chat, buffer, filename, "", m);
+        conn.sendFile(m.chat, buffer, filename, '', m);
       }
       m.react("✅");
       return;
     } catch (error) {
-      console.error(error);
       m.react("❌");
       let displayError = "Terjadi kesalahan saat melakukan permintaan.";
       if (error.response) {
-        displayError = "Permintaan gagal dengan status *" + error.response.status + "* (" + (error.response.statusText || "Unknown Status") + ").";
+        displayError = `Permintaan gagal dengan status *${error.response.status}* (${error.response.statusText || "Unknown Status"}).`;
         if (error.response.data) {
           try {
             const errorData = Buffer.from(error.response.data).toString("utf8");
             const parsedError = tryParseJSON(errorData);
             if (typeof parsedError === "object" && parsedError !== null) {
-              displayError += "\nDetail: " + JSON.stringify(parsedError, null, 2).slice(0, 500);
+              displayError += "\nDetail: ```json\n" + JSON.stringify(parsedError, null, 2).slice(0, 500) + "\n```"; // Beri backtick untuk error JSON
             } else {
               displayError += "\nDetail: " + errorData.slice(0, 500);
             }
@@ -272,7 +276,7 @@ module.exports = {
       } else {
         displayError = "Error: " + (error.message || "Terjadi kesalahan tidak terduga.") + ".";
       }
-      return m.reply("❌ *ERROR GET/FETCH:*\n\n" + displayError);
+      return conn.reply(m.chat, "❌ *ERROR GET/FETCH:*\n\n" + displayError, m);
     }
   },
   limit: 1
