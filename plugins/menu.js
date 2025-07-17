@@ -128,7 +128,7 @@ ${formatList(`All Commands\n${daftarTag}`, "  ")}
       const messages = `
 ╭─「 📚 *${perintah.toUpperCase()} COMMANDS* 📚 」
 │
-${formattedDentarHelp}
+${formattedDaftarHelp}
 │
 │ ${legend}
 ╰─「 📋 *DAFTAR LENGKAP* 📋 」
