@@ -18,7 +18,7 @@ module.exports = async (conn, m, store) => {
     const groupSet = db.groups[m.chat];
     const chats = db.chats[m.chat];
     const setting = db.setting;
-    const isOwner = [conn.decodeJid(conn.user.id).split`@` [0], config.OWNER, ...setting.owners].map(v => v + "@s.whatsapp.net").includes(m.sender);
+    const isOwner = [conn.decodeJid(conn.user.id).split`@` [0], ...config.OWNER, ...setting.owners].map(v => v + "@s.whatsapp.net").includes(m.sender);
     const isPrems = users.premium || isOwner;
     if (setting.autoread) {
       await conn.sendPresenceUpdate("available", m.chat);
@@ -230,7 +230,7 @@ module.exports = async (conn, m, store) => {
           if (e) {
             let teks = Func.jsonFormat(e);
             if (teks.match("rate-overlimit")) return;
-            if (e.name) conn.sendMessage(config.OWNER + "@s.whatsapp.net", {
+            if (e.name) conn.sendMessage(config.OWNER[0] + "@s.whatsapp.net", {
               text: `Telah terjadi Error pada Bot
 
 *- Nama Fitur :* ${m.plugin}
