@@ -1,0 +1,44 @@
+const config = {
+  // API Keys
+  ELEVENLABS_API_KEY: 'sk_ee2386ac3b2717ff6dab24905cb69d0d49a2f9199136e7e8',
+  IMGBB_API_KEY: 'fcfbae2f7823157500624e0cd3701b13',
+  GEMINI_API_KEY: 'AIzaSyDnBPd_EhBfr73NssnThVQZYiKZVhGZewU',
+
+  // Global Settings
+  FOOTER: "wudysoft",
+  // OWNER bisa berupa string tunggal atau array, sesuaikan dengan kebutuhan Anda
+  OWNER: "6282195322106",
+  TIMEOUT: 1800000,
+  REACT_STATUS: ['❤️','💥','😋','🤩','✨','🔥','🌟',😜','🥶','💀'],
+
+  // Limit Settings
+  LIMIT: 100,
+  LIMIT_PREM: "Unlimited",
+
+  // Database Settings
+  DATABASE_STATE: 'json',
+  DATABASE_NAME: 'database',
+  DB_HOST: '',
+  DB_PORT: 5432,
+  DB_USER: '',
+  DB_PASS: '',
+  DB_NAME: '',
+  POSTGRES_USER: '',
+  POSTGRES_PASSWORD: '',
+  POSTGRES_HOST: '',
+  POSTGRES_PORT: 5432,
+  POSTGRES_DATABASE: '',
+  POSTGRES_SSL: '',
+
+  // Session Settings
+  SESSION_TYPE: 'local',
+  SESSION_NAME: 'session',
+  PAIRING_STATE: true,
+  PAIRING_NUMBER: '6282196415358',
+
+  // Other Settings
+  TZ: "Asia/Jakarta",
+  ID_GC: '',
+};
+
+module.exports = config;
